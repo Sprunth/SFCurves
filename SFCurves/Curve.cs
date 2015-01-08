@@ -14,9 +14,9 @@ namespace SFCurves
         private readonly List<Curve> _curves = new List<Curve>();
         private bool NeedsToSplit {get { return _points.Count != 0; }} // whether to look at _points list and/or _curves list (and recurse)
         private VertexArray _array = new VertexArray(PrimitiveType.LinesStrip);
+        private VertexArray _array2 = new VertexArray(PrimitiveType.LinesStrip);
         private bool _isDirty = false;
         
-
         public Curve()
         {
             
@@ -81,7 +81,49 @@ namespace SFCurves
             
 
             return array;
-        } 
+        }
+
+        private VertexArray OffSetArray()
+        {
+            var va = new VertexArray(PrimitiveType.LinesStrip);
+
+            // Loop through every line segment
+            for (uint i = 0; i < _array.VertexCount - 1; i++)
+            {
+                var point1 = _array[i].Position;
+                var point2 = _array[i + 1].Position;
+
+                var segmentAngle = Math.Atan2(point2.Y - point1.Y, point2.X - point1.X);
+                var angle1 = segmentAngle - Math.PI/2;
+                var angle2 = segmentAngle + Math.PI/2;
+
+                var distance = 25f;
+
+                var newPoint1a = new Vector2f(
+                    (float) Math.Round(point1.X + distance*Math.Cos(angle1)),
+                    (float) Math.Round(point1.Y + distance*Math.Sin(angle1))
+                    );
+                var newPoint1b = new Vector2f(
+                    (float)Math.Round(point2.X + distance * Math.Cos(angle1)),
+                    (float)Math.Round(point2.Y + distance * Math.Sin(angle1))
+                    );
+                var newPoint2a = new Vector2f(
+                    (float)Math.Round(point1.X + distance * Math.Cos(angle2)),
+                    (float)Math.Round(point1.Y + distance * Math.Sin(angle2))
+                    );
+                var newPoint2b = new Vector2f(
+                    (float)Math.Round(point2.X + distance * Math.Cos(angle2)),
+                    (float)Math.Round(point2.Y + distance * Math.Sin(angle2))
+                    );
+
+                // no clipping or stitching of new points
+                va.Append(new Vertex(newPoint1a));
+                va.Append(new Vertex(newPoint2a));
+                va.Append(new Vertex(newPoint2b));
+                va.Append(new Vertex(newPoint1b));
+            }
+            return va;
+        }
 
         private bool IsFlat()
         {
@@ -110,15 +152,19 @@ namespace SFCurves
             return (Math.Max(ax, bx) + Math.Max(ay, by) <= tol);
         }
 
-        void Drawable.Draw(RenderTarget target, RenderStates states)
+        public void Draw(RenderTarget target, RenderStates states)
         {
+            
             if (_isDirty)
             {
                 _isDirty = false;
                 _array = RegenerateVertexArray();
+                _array2 = OffSetArray();
             }
 
+            target.Draw(_array2);
             target.Draw(_array);
+            
 
             //return;
             _points.ForEach(point =>
@@ -132,6 +178,8 @@ namespace SFCurves
                     Position = point.Vector,
                 });
             });
+            
+            //_curves.ForEach(curve => curve.Draw(target, states));
         }
 
         Vector2f Midpoint(Vector2f v1, Vector2f v2)
